@@ -1,7 +1,7 @@
 // client/src/pages/Notes.tsx
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, Star, Code, FileText, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Star, FileText, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '../lib/api';
 import toast from 'react-hot-toast';

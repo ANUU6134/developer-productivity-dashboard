@@ -13,7 +13,6 @@ import {
 import { cn } from '../../lib/utils';
 
 interface SidebarProps {
-  isOpen: boolean;
   onClose: () => void;
 }
 
@@ -26,12 +25,13 @@ const navItems = [
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   return (
     <aside
       className={cn(
         "h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col",
-        "shadow-lg lg:shadow-none"
+        "shadow-lg lg:shadow-none",
+        "overflow-y-auto"
       )}
     >
       {/* Header */}
@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav className="flex-1 py-4">
         {navItems.map((item) => (
           <NavLink
             key={item.path}

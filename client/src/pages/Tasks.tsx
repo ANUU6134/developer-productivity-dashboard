@@ -9,9 +9,7 @@ import {
   Circle,
   Clock,
   AlertCircle,
-  Filter,
   Search,
-  ChevronDown,
   Calendar,
   Flag,
   Tag

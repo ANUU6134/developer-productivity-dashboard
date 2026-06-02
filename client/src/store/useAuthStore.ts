@@ -1,4 +1,3 @@
-// client/src/store/useAuthStore.ts (fixed)
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../lib/api';
@@ -24,11 +23,12 @@ interface AuthState {
   logout: () => void;
   fetchUser: () => Promise<void>;
   updateUser: (data: Partial<User>) => Promise<void>;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false,
@@ -89,7 +89,7 @@ export const useAuthStore = create<AuthState>()(
       updateUser: async (data: Partial<User>) => {
         set({ isLoading: true });
         try {
-          const response = await api.put('/api/users/profile', data);
+          const response = await api.put('/api/auth/profile', data);
           set({ user: response.data });
           toast.success('Profile updated successfully');
         } catch (error: any) {
@@ -100,6 +100,8 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
         }
       },
+
+      setUser: (user: User) => set({ user }),
     }),
     {
       name: 'auth-storage',

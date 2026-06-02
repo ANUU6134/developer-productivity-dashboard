@@ -1,12 +1,10 @@
-// client/src/pages/Analytics.tsx (COMPLETE WITH REAL DATA)
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area
 } from 'recharts';
-import { TrendingUp, Clock, CheckCircle, Calendar, Code, Target, Zap } from 'lucide-react';
+import { Zap, Code, Target, Calendar } from 'lucide-react';
 import api from '../lib/api';
 
 const Analytics: React.FC = () => {
@@ -65,19 +63,6 @@ const Analytics: React.FC = () => {
     },
   });
 
-  const { data: userStats } = useQuery({
-    queryKey: ['user-stats'],
-    queryFn: async () => {
-      try {
-        const response = await api.get('/api/analytics/user-stats');
-        return response.data;
-      } catch (error) {
-        console.error('Failed to fetch user stats:', error);
-        return null;
-      }
-    },
-  });
-
   // Prepare chart data
   const taskChartData = tasksData?.labels?.map((label: string, idx: number) => ({
     date: label,
@@ -90,7 +75,7 @@ const Analytics: React.FC = () => {
     hours: codingData.hours?.[idx] || 0,
   })) || [];
 
-  // Language data (can be enhanced later with real data)
+  // Language data
   const languageData = [
     { name: 'TypeScript', value: 45, color: '#3b82f6' },
     { name: 'Python', value: 30, color: '#10b981' },
@@ -142,14 +127,6 @@ const Analytics: React.FC = () => {
               <Zap className="h-6 w-6 text-green-600" />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-green-500 rounded-full transition-all duration-500"
-                style={{ width: `${stats.productivity_score}%` }}
-              />
-            </div>
-          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -164,7 +141,6 @@ const Analytics: React.FC = () => {
               <Code className="h-6 w-6 text-blue-600" />
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Last 30 days</p>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -179,9 +155,6 @@ const Analytics: React.FC = () => {
               <Target className="h-6 w-6 text-purple-600" />
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
-            {stats.completed_tasks}/{stats.total_tasks} tasks completed
-          </p>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -196,7 +169,6 @@ const Analytics: React.FC = () => {
               <Calendar className="h-6 w-6 text-orange-600" />
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Weeks in a row</p>
         </div>
       </div>
 
@@ -208,41 +180,29 @@ const Analytics: React.FC = () => {
             Task Completion Trend
           </h3>
           <ResponsiveContainer width="100%" height={320}>
-            {taskChartData.length > 0 ? (
-              <LineChart data={taskChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="completed" 
-                  stroke="#10b981" 
-                  strokeWidth={2} 
-                  name="Completed"
-                  dot={{ fill: '#10b981', strokeWidth: 2 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="created" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2} 
-                  name="Created"
-                  dot={{ fill: '#3b82f6', strokeWidth: 2 }}
-                />
-              </LineChart>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No data available. Create some tasks to see analytics!
-              </div>
-            )}
+            <LineChart data={taskChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" stroke="#6b7280" />
+              <YAxis stroke="#6b7280" />
+              <Tooltip />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="completed" 
+                stroke="#10b981" 
+                strokeWidth={2} 
+                name="Completed"
+                dot={{ fill: '#10b981', strokeWidth: 2 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="created" 
+                stroke="#3b82f6" 
+                strokeWidth={2} 
+                name="Created"
+                dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </div>
 
@@ -252,30 +212,13 @@ const Analytics: React.FC = () => {
             Daily Coding Hours
           </h3>
           <ResponsiveContainer width="100%" height={320}>
-            {codingChartData.length > 0 ? (
-              <BarChart data={codingChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                  formatter={(value: any) => [`${value} hours`, 'Coding Time']}
-                />
-                <Bar dataKey="hours" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
-                  {codingChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.hours > 5 ? '#ef4444' : '#8b5cf6'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No coding data available. Complete tasks to track hours!
-              </div>
-            )}
+            <BarChart data={codingChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" stroke="#6b7280" />
+              <YAxis stroke="#6b7280" />
+              <Tooltip formatter={(value: any) => [`${value} hours`, 'Coding Time']} />
+              <Bar dataKey="hours" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
 
@@ -291,13 +234,13 @@ const Analytics: React.FC = () => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"
                 nameKey="name"
               >
-                {languageData.map((entry, index) => (
+                {languageData.map((entry: { name: string; value: number; color: string }, index: number) => (
                   <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
