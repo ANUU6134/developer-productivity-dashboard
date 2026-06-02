@@ -20,7 +20,7 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
 
 # Get allowed origins from environment variable
-ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "https://dev-dashboard-frontend-0xvq.onrender.com,http://localhost:5173,http://localhost:3000").split(",")
 
 # CORS configuration for production
 app.add_middleware(
