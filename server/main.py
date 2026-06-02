@@ -7,9 +7,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-@app.on_event("startup")
-def on_startup():
-    Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Developer Dashboard API", 
@@ -17,6 +14,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
 
 # Get allowed origins from environment variable
 ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
