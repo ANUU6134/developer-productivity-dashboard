@@ -66,7 +66,7 @@ const Layout: React.FC = () => {
           "lg:translate-x-0 lg:block"
         )}
       >
-        <Sidebar isOpen={true} onClose={() => setSidebarOpen(false)} />
+        <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
 
       {/* Main content - Pushed right on desktop, full width on mobile */}
