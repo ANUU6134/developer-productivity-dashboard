@@ -31,7 +31,7 @@ class TaskResponse(BaseModel):
     created_at: str
     updated_at: Optional[str]
 
-@router.get("/", response_model=List[TaskResponse])
+@router.get("/")
 def get_tasks(
     status: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -45,36 +45,33 @@ def get_tasks(
     tasks = query.order_by(Task.created_at.desc()).all()
     
     return [
-        TaskResponse(
-            id=t.id,
-            title=t.title,
-            description=t.description or "",
-            status=t.status,
-            priority=t.priority,
-            labels=t.labels or [],
-            due_date=t.due_date.isoformat() if t.due_date else None,
-            estimated_hours=t.estimated_hours or 0,
-            actual_hours=t.actual_hours or 0,
-            created_at=t.created_at.isoformat(),
-            updated_at=t.updated_at.isoformat() if t.updated_at else None
-        )
+        {
+            "id": t.id,
+            "title": t.title,
+            "description": t.description or "",
+            "status": t.status,
+            "priority": t.priority,
+            "labels": t.labels or [],
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+            "estimated_hours": t.estimated_hours or 0,
+            "actual_hours": t.actual_hours or 0,
+            "created_at": t.created_at.isoformat(),
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None
+        }
         for t in tasks
     ]
 
-@router.post("/", response_model=TaskResponse)
-def create_task(
-    task: TaskCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
+@router.post("/")
+def create_task(task_data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     db_task = Task(
-        title=task.title,
-        description=task.description,
-        status=task.status,
-        priority=task.priority,
-        labels=task.labels,
-        due_date=datetime.fromisoformat(task.due_date) if task.due_date else None,
-        estimated_hours=task.estimated_hours,
+        title=task_data.get("title"),
+        description=task_data.get("description", ""),
+        status=task_data.get("status", "todo"),
+        priority=task_data.get("priority", "medium"),
+        labels=task_data.get("labels", []),
+        due_date=datetime.fromisoformat(task_data["due_date"]) if task_data.get("due_date") else None,
+        estimated_hours=task_data.get("estimated_hours", 0),
+        actual_hours=0,
         assignee_id=current_user.id
     )
     
@@ -82,102 +79,80 @@ def create_task(
     db.commit()
     db.refresh(db_task)
     
-    return TaskResponse(
-        id=db_task.id,
-        title=db_task.title,
-        description=db_task.description or "",
-        status=db_task.status,
-        priority=db_task.priority,
-        labels=db_task.labels or [],
-        due_date=db_task.due_date.isoformat() if db_task.due_date else None,
-        estimated_hours=db_task.estimated_hours or 0,
-        actual_hours=db_task.actual_hours or 0,
-        created_at=db_task.created_at.isoformat(),
-        updated_at=db_task.updated_at.isoformat() if db_task.updated_at else None
+    # Create activity log
+    activity = ActivityLog(
+        user_id=current_user.id,
+        action="created",
+        entity_type="task",
+        entity_id=db_task.id,
+        details={"title": task_data.get("title")}
     )
+    db.add(activity)
+    db.commit()
+    
+    return {
+        "id": db_task.id,
+        "title": db_task.title,
+        "description": db_task.description or "",
+        "status": db_task.status,
+        "priority": db_task.priority,
+        "labels": db_task.labels or [],
+        "due_date": db_task.due_date.isoformat() if db_task.due_date else None,
+        "estimated_hours": db_task.estimated_hours or 0,
+        "actual_hours": db_task.actual_hours or 0,
+        "created_at": db_task.created_at.isoformat(),
+        "updated_at": db_task.updated_at.isoformat() if db_task.updated_at else None
+    }
 
-# Add to the update_task endpoint in tasks.py
-@router.put("/{task_id}", response_model=TaskResponse)
-def update_task(
-    task_id: int,
-    task: TaskCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
+@router.put("/{task_id}")
+def update_task(task_id: int, task_data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     db_task = db.query(Task).filter(Task.id == task_id, Task.assignee_id == current_user.id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Store old status for comparison
     old_status = db_task.status
-    old_updated_at = db_task.updated_at
     
-    # Update task fields
-    db_task.title = task.title
-    db_task.description = task.description
-    db_task.status = task.status
-    db_task.priority = task.priority
-    db_task.labels = task.labels
-    db_task.due_date = datetime.fromisoformat(task.due_date) if task.due_date else None
-    db_task.estimated_hours = task.estimated_hours
+    # Update fields
+    db_task.title = task_data.get("title", db_task.title)
+    db_task.description = task_data.get("description", db_task.description)
+    db_task.status = task_data.get("status", db_task.status)
+    db_task.priority = task_data.get("priority", db_task.priority)
+    db_task.labels = task_data.get("labels", db_task.labels)
+    db_task.due_date = datetime.fromisoformat(task_data["due_date"]) if task_data.get("due_date") else None
+    db_task.estimated_hours = task_data.get("estimated_hours", db_task.estimated_hours)
     db_task.updated_at = datetime.utcnow()
     
-    # If task is being marked as completed, calculate actual hours
-    if task.status == "completed" and old_status != "completed":
-        # Calculate hours between creation and completion
-        if db_task.created_at and db_task.updated_at:
-            time_diff = db_task.updated_at - db_task.created_at
-            db_task.actual_hours = round(time_diff.total_seconds() / 3600, 1)
-        else:
-            db_task.actual_hours = task.estimated_hours or 1.0  # Default 1 hour if no time data
-        
-        # Create activity log for completion
+    # If task is being marked as completed
+    if db_task.status == "completed" and old_status != "completed":
+        db_task.actual_hours = db_task.estimated_hours or 0
         activity = ActivityLog(
             user_id=current_user.id,
             action="completed",
             entity_type="task",
             entity_id=db_task.id,
-            details={
-                "title": task.title,
-                "status": task.status,
-                "actual_hours": db_task.actual_hours
-            }
-        )
-        db.add(activity)
-    elif old_status != task.status:
-        # Create activity log for status change
-        activity = ActivityLog(
-            user_id=current_user.id,
-            action="updated_status",
-            entity_type="task",
-            entity_id=db_task.id,
-            details={"title": task.title, "old_status": old_status, "new_status": task.status}
+            details={"title": db_task.title}
         )
         db.add(activity)
     
     db.commit()
     db.refresh(db_task)
-
-    return TaskResponse(
-        id=db_task.id,
-        title=db_task.title,
-        description=db_task.description or "",
-        status=db_task.status,
-        priority=db_task.priority,
-        labels=db_task.labels or [],
-        due_date=db_task.due_date.isoformat() if db_task.due_date else None,
-        estimated_hours=db_task.estimated_hours or 0,
-        actual_hours=db_task.actual_hours or 0,
-        created_at=db_task.created_at.isoformat(),
-        updated_at=db_task.updated_at.isoformat() if db_task.updated_at else None
-    )
+    
+    return {
+        "id": db_task.id,
+        "title": db_task.title,
+        "description": db_task.description or "",
+        "status": db_task.status,
+        "priority": db_task.priority,
+        "labels": db_task.labels or [],
+        "due_date": db_task.due_date.isoformat() if db_task.due_date else None,
+        "estimated_hours": db_task.estimated_hours or 0,
+        "actual_hours": db_task.actual_hours or 0,
+        "created_at": db_task.created_at.isoformat(),
+        "updated_at": db_task.updated_at.isoformat() if db_task.updated_at else None
+    }
 
 @router.delete("/{task_id}")
-def delete_task(
-    task_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
+def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     db_task = db.query(Task).filter(Task.id == task_id, Task.assignee_id == current_user.id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")

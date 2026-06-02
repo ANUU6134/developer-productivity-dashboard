@@ -48,11 +48,25 @@ class NotificationPreferences(BaseModel):
     project_updates: bool = True
     deadline_alerts: bool = True
     
-@router.post("/register", response_model=UserResponse)
-def register(user_data: UserCreate, db: Session = Depends(get_db)):
+@router.post("/register")
+def register(user_data: dict, db: Session = Depends(get_db)):
+    """Register a new user"""
+    # Extract data from dict
+    email = user_data.get("email")
+    username = user_data.get("username")
+    full_name = user_data.get("full_name", "")
+    password = user_data.get("password")
+    
+    # Validate required fields
+    if not email or not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email, username, and password are required"
+        )
+    
     # Check if user exists
     existing = db.query(User).filter(
-        (User.email == user_data.email) | (User.username == user_data.username)
+        (User.email == email) | (User.username == username)
     ).first()
     
     if existing:
@@ -62,11 +76,11 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         )
     
     # Create new user
-    hashed_password = get_password_hash(user_data.password)
+    hashed_password = get_password_hash(password)
     db_user = User(
-        email=user_data.email,
-        username=user_data.username,
-        full_name=user_data.full_name,
+        email=email,
+        username=username,
+        full_name=full_name,
         hashed_password=hashed_password
     )
     
@@ -74,21 +88,31 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    return UserResponse(
-        id=db_user.id,
-        email=db_user.email,
-        username=db_user.username,
-        full_name=db_user.full_name,
-        role=db_user.role,
-        is_active=db_user.is_active,
-        created_at=db_user.created_at.isoformat()
-    )
+    return {
+        "id": db_user.id,
+        "email": db_user.email,
+        "username": db_user.username,
+        "full_name": db_user.full_name,
+        "role": db_user.role,
+        "is_active": db_user.is_active,
+        "created_at": db_user.created_at.isoformat()
+    }
 
-@router.post("/login", response_model=TokenResponse)
-def login(login_data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login_data.email).first()
+@router.post("/login")
+def login(login_data: dict, db: Session = Depends(get_db)):
+    """Login user"""
+    email = login_data.get("email")
+    password = login_data.get("password")
     
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    if not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email and password are required"
+        )
+    
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -97,63 +121,65 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 def get_me(current_user: User = Depends(get_current_active_user)):
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        username=current_user.username,
-        full_name=current_user.full_name,
-        role=current_user.role,
-        is_active=current_user.is_active,
-        created_at=current_user.created_at.isoformat()
-    )
-
+    """Get current user info"""
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+        "avatar_url": current_user.avatar_url,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at.isoformat()
+    }
 
 @router.put("/change-password")
-def change_password(
-    password_data: PasswordChange,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user)
-):
+def change_password(password_data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """Change user password"""
+    current_password = password_data.get("current_password")
+    new_password = password_data.get("new_password")
+    
+    if not current_password or not new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password and new password are required"
+        )
+    
     # Verify current password
-    if not auth.verify_password(password_data.current_password, current_user.hashed_password):
+    if not verify_password(current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
         )
     
     # Validate new password length
-    if len(password_data.new_password) < 6:
+    if len(new_password) < 6:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must be at least 6 characters"
         )
     
     # Update password
-    current_user.hashed_password = auth.get_password_hash(password_data.new_password)
+    current_user.hashed_password = get_password_hash(new_password)
     db.commit()
     
     return {"message": "Password updated successfully"}
 
 @router.put("/profile")
-def update_profile(
-    profile_data: ProfileUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user)
-):
+def update_profile(profile_data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """Update user profile"""
     
     # Update full name if provided
-    if profile_data.full_name is not None:
-        current_user.full_name = profile_data.full_name
+    if "full_name" in profile_data and profile_data["full_name"] is not None:
+        current_user.full_name = profile_data["full_name"]
     
     # Update email if provided
-    if profile_data.email is not None:
+    if "email" in profile_data and profile_data["email"] is not None:
         # Check if email is already taken by another user
         existing_user = db.query(User).filter(
-            User.email == profile_data.email,
+            User.email == profile_data["email"],
             User.id != current_user.id
         ).first()
         
@@ -162,11 +188,11 @@ def update_profile(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already in use by another account"
             )
-        current_user.email = profile_data.email
+        current_user.email = profile_data["email"]
     
     # Update avatar URL if provided
-    if profile_data.avatar_url is not None:
-        current_user.avatar_url = profile_data.avatar_url
+    if "avatar_url" in profile_data and profile_data["avatar_url"] is not None:
+        current_user.avatar_url = profile_data["avatar_url"]
     
     db.commit()
     db.refresh(current_user)
@@ -185,11 +211,9 @@ def update_profile(
 @router.get("/notifications/preferences")
 def get_notification_preferences(
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """Get user notification preferences"""
-    # You can store these in a separate table or in user profile
-    # For now, return default preferences
     return {
         "email_notifications": True,
         "task_reminders": True,
@@ -199,14 +223,12 @@ def get_notification_preferences(
 
 @router.put("/notifications/preferences")
 def update_notification_preferences(
-    preferences: NotificationPreferences,
+    preferences: dict,
     db: Session = Depends(get_db),
-    current_user: User = Depends(auth.get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """Update user notification preferences"""
-    # Store preferences in database (you may need to add a notification_preferences column to User model)
-    # For now, just return success
     return {
         "message": "Notification preferences updated successfully",
-        "preferences": preferences.dict()
+        "preferences": preferences
     }
